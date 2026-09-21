@@ -43,12 +43,12 @@ echo "🖥️  Setting up desktop shortcut..."
 DESKTOP_FILE="$HOME/.local/share/applications/media-transcriber.desktop"
 APP_DIR="$(pwd)"
 
-# We use icon.jpg since it's already in the repository
+# We use icon.png since it's already in the repository
 cat << EOF > "$DESKTOP_FILE"
 [Desktop Entry]
 Name=Media Transcriber
 Exec=$APP_DIR/target/release/media-transcriber
-Icon=$APP_DIR/ui/icon.jpg
+Icon=$APP_DIR/ui/icon.png
 Type=Application
 Terminal=false
 Categories=Utility;AudioVideo;
