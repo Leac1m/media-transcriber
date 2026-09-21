@@ -51,6 +51,7 @@ Exec=$APP_DIR/target/release/media-transcriber
 Icon=$APP_DIR/ui/icon.png
 Type=Application
 Terminal=false
+StartupWMClass=media-transcriber
 Categories=Utility;AudioVideo;
 EOF
 

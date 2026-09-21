@@ -6,6 +6,7 @@ use std::thread;
 use std::sync::Arc;
 use std::sync::Mutex;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+use notify_rust::Notification;
 
 fn extract_audio(video_path: &str, output_path: &str) -> Result<(), String> {
     let status = Command::new("ffmpeg")
@@ -44,6 +45,30 @@ fn parse_wav_file(path: &str) -> Result<Vec<f32>, String> {
     Ok(audio_data)
 }
 
+fn get_last_dir_path() -> Option<PathBuf> {
+    std::env::var("HOME").ok().map(|home| PathBuf::from(home).join(".media_transcriber_last_dir"))
+}
+
+fn save_last_dir(path: &std::path::Path) {
+    if let Some(parent) = path.parent() {
+        if let Some(config_path) = get_last_dir_path() {
+            let _ = std::fs::write(config_path, parent.to_string_lossy().as_ref());
+        }
+    }
+}
+
+fn load_last_dir() -> Option<PathBuf> {
+    if let Some(config_path) = get_last_dir_path() {
+        if let Ok(content) = std::fs::read_to_string(config_path) {
+            let path = PathBuf::from(content.trim());
+            if path.exists() && path.is_dir() {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
 
@@ -54,10 +79,16 @@ fn main() -> Result<(), slint::PlatformError> {
     let ui_handle = ui.as_weak();
     let video_path_clone = Arc::clone(&video_path);
     ui.on_select_file(move || {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Media Files", &["mp4", "mkv", "avi", "mov", "webm", "mp3", "wav", "m4a", "flac"])
-            .pick_file() 
+        let mut dialog = rfd::FileDialog::new()
+            .add_filter("Media Files", &["mp4", "mkv", "avi", "mov", "webm", "mp3", "wav", "m4a", "flac"]);
+            
+        if let Some(last_dir) = load_last_dir() {
+            dialog = dialog.set_directory(last_dir);
+        }
+
+        if let Some(path) = dialog.pick_file() 
         {
+            save_last_dir(&path);
             *video_path_clone.lock().unwrap() = Some(path.clone());
             println!("Video path: {video_path_clone:#?}");
             if let Some(ui) = ui_handle.upgrade() {
@@ -223,6 +254,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             
+            let _ = Notification::new()
+                .summary("Media Transcriber")
+                .body("Transcription complete!")
+                .icon("media-transcriber")
+                .show();
+            
         });
     });
 
@@ -233,7 +270,13 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     
     ui.on_save_to_file(move |text| {
-        if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt"]).save_file() {
+        let mut dialog = rfd::FileDialog::new().add_filter("Text", &["txt"]);
+        if let Some(last_dir) = load_last_dir() {
+            dialog = dialog.set_directory(last_dir);
+        }
+        
+        if let Some(path) = dialog.save_file() {
+            save_last_dir(&path);
             let _ = std::fs::write(path, text.to_string());
         }
     });
