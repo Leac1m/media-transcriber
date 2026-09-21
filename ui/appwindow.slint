@@ -13,10 +13,14 @@ export component AppWindow inherits Window {
     in property <float> progress: 0.0;
     in property <bool> is_processing: false;
     
+    in property <bool> show_download_popup: false;
+    in property <float> download_progress: 0.0;
+    
     callback select_file();
     callback start_transcription();
     callback copy_to_clipboard(string);
     callback save_to_file(string);
+    callback start_download();
 
     VerticalBox {
         padding: 15px;
@@ -64,6 +68,50 @@ export component AppWindow inherits Window {
                 Button {
                     text: "💾 Save to File";
                     clicked => { root.save_to_file(root.show_timestamps ? root.text_with_timestamps : root.text_without_timestamps); }
+                }
+            }
+        }
+    }
+
+    if root.show_download_popup : Rectangle {
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+
+        Rectangle {
+            width: 450px;
+            height: 220px;
+            background: #242424;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: #3a3a3a;
+            
+            VerticalBox {
+                padding: 25px;
+                spacing: 15px;
+                alignment: space-around;
+                
+                Text {
+                    text: "Model Download Required";
+                    font-size: 18px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                
+                Text {
+                    text: "To transcribe media, you need to download the Whisper transcription model (approx. 140MB). This is a one-time download.";
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+                
+                ProgressIndicator {
+                    progress: root.download_progress;
+                }
+                
+                Button {
+                    text: root.download_progress > 0.0 ? "Downloading..." : "Download Now";
+                    clicked => { root.start_download(); }
+                    enabled: root.download_progress == 0.0;
                 }
             }
         }

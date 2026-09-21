@@ -8,9 +8,54 @@ use notify_rust::Notification;
 use media_transcriber::audio::{extract_audio, parse_wav_file};
 use media_transcriber::config::{load_last_dir, save_last_dir};
 use media_transcriber::transcription::transcribe_audio;
+use media_transcriber::model::download_model;
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
+
+    let model_path = "models/ggml-small.bin";
+    let model_file_path = std::path::Path::new(model_path);
+    if !model_file_path.exists() {
+        ui.set_show_download_popup(true);
+    }
+
+    let ui_handle_download = ui.as_weak();
+    ui.on_start_download(move || {
+        let ui_bg = ui_handle_download.clone();
+        thread::spawn(move || {
+            let model_path = "models/ggml-small.bin";
+            let model_file_path = std::path::Path::new(model_path);
+            
+            let download_progress_callback = {
+                let ui_bg = ui_bg.clone();
+                move |progress: f32| {
+                    let _ = slint::invoke_from_event_loop({
+                        let ui_bg = ui_bg.clone();
+                        move || {
+                            if let Some(ui) = ui_bg.upgrade() {
+                                ui.set_download_progress(progress);
+                            }
+                        }
+                    });
+                }
+            };
+            
+            if let Err(e) = download_model(
+                "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
+                model_file_path,
+                download_progress_callback
+            ) {
+                println!("Error downloading model: {}", e);
+                // optionally handle error in UI
+            }
+            
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_bg.upgrade() {
+                    ui.set_show_download_popup(false);
+                }
+            });
+        });
+    });
 
     // Shared state
     let video_path = Arc::new(Mutex::new(None::<PathBuf>));
@@ -51,8 +96,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let input_path = path_opt.unwrap().to_string_lossy().to_string();
         
         if let Some(ui) = ui_handle_transcribe.upgrade() {
-            ui.set_text_with_timestamps("Starting transcription process...\nExtracting audio with ffmpeg...".into()); ui.set_text_without_timestamps("Starting transcription process...\nExtracting audio with ffmpeg...".into());
-            ui.set_progress(0.05);
+            ui.set_text_with_timestamps("Starting transcription process...\nChecking requirements...".into()); ui.set_text_without_timestamps("Starting transcription process...\nChecking requirements...".into());
+            ui.set_progress(0.0);
             ui.set_is_processing(true);
         }
         
@@ -60,7 +105,17 @@ fn main() -> Result<(), slint::PlatformError> {
         
         thread::spawn(move || {
             let wav_path = "/tmp/media_transcriber_audio.wav";
-            
+
+            let _ = slint::invoke_from_event_loop({
+                let ui_bg = ui_bg.clone();
+                move || {
+                    if let Some(ui) = ui_bg.upgrade() {
+                        ui.set_progress(0.05);
+                        ui.set_text_with_timestamps("Extracting audio with ffmpeg...".into()); ui.set_text_without_timestamps("Extracting audio with ffmpeg...".into());
+                    }
+                }
+            });
+
             // 1. Extract audio
             if let Err(e) = extract_audio(&input_path, wav_path) {
                 let _ = slint::invoke_from_event_loop(move || {
