@@ -1,16 +1,21 @@
-import { Button, VerticalBox, ProgressIndicator, TextEdit } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, ProgressIndicator, TextEdit, CheckBox } from "std-widgets.slint";
 
 export component AppWindow inherits Window {
     title: "Media Transcriber";
-    width: 700px;
-    height: 500px;
+    width: 750px;
+    height: 600px;
     
-    in property <string> transcription_text: "Awaiting transcription...";
+    in property <string> text_with_timestamps: "Awaiting transcription...";
+    in property <string> text_without_timestamps: "Awaiting transcription...";
+    in-out property <bool> show_timestamps: true;
+    
     in property <float> progress: 0.0;
     in property <bool> is_processing: false;
     
     callback select_file();
     callback start_transcription();
+    callback copy_to_clipboard(string);
+    callback save_to_file(string);
 
     VerticalBox {
         padding: 15px;
@@ -34,8 +39,32 @@ export component AppWindow inherits Window {
         }
         
         TextEdit {
-            text: root.transcription_text;
+            text: root.show_timestamps ? root.text_with_timestamps : root.text_without_timestamps;
             read-only: true;
+        }
+        
+        HorizontalBox {
+            alignment: space-between;
+            padding: 0px;
+            
+            CheckBox {
+                text: "Show Timestamps";
+                checked <=> root.show_timestamps;
+            }
+            
+            HorizontalBox {
+                spacing: 10px;
+                padding: 0px;
+                alignment: end;
+                Button {
+                    text: "📋 Copy to Clipboard";
+                    clicked => { root.copy_to_clipboard(root.show_timestamps ? root.text_with_timestamps : root.text_without_timestamps); }
+                }
+                Button {
+                    text: "💾 Save to File";
+                    clicked => { root.save_to_file(root.show_timestamps ? root.text_with_timestamps : root.text_without_timestamps); }
+                }
+            }
         }
     }
 }

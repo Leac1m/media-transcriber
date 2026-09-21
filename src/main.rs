@@ -61,7 +61,7 @@ fn main() -> Result<(), slint::PlatformError> {
             *video_path_clone.lock().unwrap() = Some(path.clone());
             println!("Video path: {video_path_clone:#?}");
             if let Some(ui) = ui_handle.upgrade() {
-                ui.set_transcription_text(format!("Selected: {}\nClick 'Start Transcription' to begin.", path.display()).into());
+                ui.set_text_with_timestamps(format!("Selected: {}\nClick 'Start Transcription' to begin.", path.display()).into()); ui.set_text_without_timestamps(format!("Selected: {}\nClick 'Start Transcription' to begin.", path.display()).into());
             }
         }
     });
@@ -73,14 +73,14 @@ fn main() -> Result<(), slint::PlatformError> {
         let path_opt = video_path_transcribe.lock().unwrap().clone();
         if path_opt.is_none() {
             if let Some(ui) = ui_handle_transcribe.upgrade() {
-                ui.set_transcription_text("Please select a file first.".into());
+                ui.set_text_with_timestamps("Please select a file first.".into()); ui.set_text_without_timestamps("Please select a file first.".into());
             }
             return;
         }
         let input_path = path_opt.unwrap().to_string_lossy().to_string();
         
         if let Some(ui) = ui_handle_transcribe.upgrade() {
-            ui.set_transcription_text("Starting transcription process...\nExtracting audio with ffmpeg...".into());
+            ui.set_text_with_timestamps("Starting transcription process...\nExtracting audio with ffmpeg...".into()); ui.set_text_without_timestamps("Starting transcription process...\nExtracting audio with ffmpeg...".into());
             ui.set_progress(0.0);
             ui.set_is_processing(true);
         }
@@ -94,7 +94,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Err(e) = extract_audio(&input_path, wav_path) {
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_bg.upgrade() {
-                        ui.set_transcription_text(format!("Error extracting audio: {}", e).into());
+                        ui.set_text_with_timestamps(format!("Error extracting audio: {}", e).into()); ui.set_text_without_timestamps(format!("Error extracting audio: {}", e).into());
                         ui.set_is_processing(false);
                     }
                 });
@@ -105,7 +105,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let ui_bg = ui_bg.clone();
                 move || {
                     if let Some(ui) = ui_bg.upgrade() {
-                        ui.set_transcription_text("Audio extracted. Loading Whisper model...".into());
+                        ui.set_text_with_timestamps("Audio extracted. Loading Whisper model...".into()); ui.set_text_without_timestamps("Audio extracted. Loading Whisper model...".into());
                     }
                 }
             });
@@ -116,7 +116,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 Err(e) => {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_bg.upgrade() {
-                            ui.set_transcription_text(format!("Error parsing audio: {}", e).into());
+                            ui.set_text_with_timestamps(format!("Error parsing audio: {}", e).into()); ui.set_text_without_timestamps(format!("Error parsing audio: {}", e).into());
                             ui.set_is_processing(false);
                         }
                     });
@@ -128,7 +128,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let ui_bg = ui_bg.clone();
                 move || {
                     if let Some(ui) = ui_bg.upgrade() {
-                        ui.set_transcription_text("Model loaded. Transcribing...".into());
+                        ui.set_text_with_timestamps("Model loaded. Transcribing...".into()); ui.set_text_without_timestamps("Model loaded. Transcribing...".into());
                     }
                 }
             });
@@ -140,7 +140,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 Err(e) => {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_bg.upgrade() {
-                            ui.set_transcription_text(format!("Failed to load model: {}", e).into());
+                            ui.set_text_with_timestamps(format!("Failed to load model: {}", e).into()); ui.set_text_without_timestamps(format!("Failed to load model: {}", e).into());
                             ui.set_is_processing(false);
                         }
                     });
@@ -160,7 +160,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Err(e) = state.full(params, &audio_data[..]) {
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_bg.upgrade() {
-                        ui.set_transcription_text(format!("Failed to transcribe: {}", e).into());
+                        ui.set_text_with_timestamps(format!("Failed to transcribe: {}", e).into()); ui.set_text_without_timestamps(format!("Failed to transcribe: {}", e).into());
                         ui.set_is_processing(false);
                     }
                 });
@@ -168,28 +168,54 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             
             let num_segments = state.full_n_segments();
-            let mut full_text = String::new();
+            let mut full_text_stamped = String::new();
+            let mut full_text_raw = String::new();
             
             for i in 0..num_segments {
                 if let Some(segment) = state.get_segment(i) {
-                    full_text.push_str(&segment.to_str().unwrap_or_else(|_| "".into()));
-                    full_text.push('\n');
+                    let text = segment.to_str().unwrap_or_else(|_| "".into());
+                    
+                    let start = segment.start_timestamp();
+                    let start_sec = start / 100;
+                    let m = start_sec / 60;
+                    let s = start_sec % 60;
+                    let ms = (start % 100) * 10;
+                    
+                    let stamped_line = format!("[{:02}:{:02}.{:03}] {}\n", m, s, ms, text.trim());
+                    
+                    full_text_stamped.push_str(&stamped_line);
+                    full_text_raw.push_str(&text);
+                    full_text_raw.push('\n');
                 }
             }
             
-            if full_text.trim().is_empty() {
-                full_text = "No speech detected.".to_string();
+            if full_text_raw.trim().is_empty() {
+                full_text_raw = "No speech detected.".to_string();
+                full_text_stamped = full_text_raw.clone();
             }
             
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_bg.upgrade() {
                     ui.set_progress(1.0);
                     ui.set_is_processing(false);
-                    ui.set_transcription_text(full_text.into());
+                    ui.set_text_with_timestamps(full_text_stamped.into()); 
+                    ui.set_text_without_timestamps(full_text_raw.into());
                 }
             });
             
         });
+    });
+
+    ui.on_copy_to_clipboard(move |text| {
+        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            let _ = clipboard.set_text(text.to_string());
+        }
+    });
+    
+    ui.on_save_to_file(move |text| {
+        if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt"]).save_file() {
+            let _ = std::fs::write(path, text.to_string());
+        }
     });
 
     ui.run()
