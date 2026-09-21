@@ -81,7 +81,7 @@ fn main() -> Result<(), slint::PlatformError> {
         
         if let Some(ui) = ui_handle_transcribe.upgrade() {
             ui.set_text_with_timestamps("Starting transcription process...\nExtracting audio with ffmpeg...".into()); ui.set_text_without_timestamps("Starting transcription process...\nExtracting audio with ffmpeg...".into());
-            ui.set_progress(0.0);
+            ui.set_progress(0.05);
             ui.set_is_processing(true);
         }
         
@@ -105,6 +105,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let ui_bg = ui_bg.clone();
                 move || {
                     if let Some(ui) = ui_bg.upgrade() {
+                        ui.set_progress(0.10);
                         ui.set_text_with_timestamps("Audio extracted. Loading Whisper model...".into()); ui.set_text_without_timestamps("Audio extracted. Loading Whisper model...".into());
                     }
                 }
@@ -128,6 +129,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let ui_bg = ui_bg.clone();
                 move || {
                     if let Some(ui) = ui_bg.upgrade() {
+                        ui.set_progress(0.15);
                         ui.set_text_with_timestamps("Model loaded. Transcribing...".into()); ui.set_text_without_timestamps("Model loaded. Transcribing...".into());
                     }
                 }
@@ -155,6 +157,24 @@ fn main() -> Result<(), slint::PlatformError> {
             params.set_print_special(false);
             params.set_print_realtime(false);
             params.set_print_timestamps(false);
+            
+            params.set_progress_callback_safe({
+                let ui_bg = ui_bg.clone();
+                move |progress| {
+                    let _ = slint::invoke_from_event_loop({
+                        let ui_bg = ui_bg.clone();
+                        move || {
+                            if let Some(ui) = ui_bg.upgrade() {
+                                let p = 0.20 + (progress as f32 / 100.0) * 0.80;
+                                ui.set_progress(p);
+                                let msg = format!("Model loaded. Transcribing... {}%", progress);
+                                ui.set_text_with_timestamps(msg.clone().into());
+                                ui.set_text_without_timestamps(msg.into());
+                            }
+                        }
+                    });
+                }
+            });
             
             // Just run it synchronously in this thread
             if let Err(e) = state.full(params, &audio_data[..]) {
