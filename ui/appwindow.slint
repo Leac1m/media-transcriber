@@ -1,0 +1,41 @@
+import { Button, VerticalBox, ProgressIndicator, TextEdit } from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "Media Transcriber";
+    width: 700px;
+    height: 500px;
+    
+    in property <string> transcription_text: "Awaiting transcription...";
+    in property <float> progress: 0.0;
+    in property <bool> is_processing: false;
+    
+    callback select_file();
+    callback start_transcription();
+
+    VerticalBox {
+        padding: 15px;
+        spacing: 15px;
+        
+        Button {
+            text: "Select Video File";
+            clicked => { root.select_file(); }
+            enabled: !root.is_processing;
+        }
+        
+        Button {
+            text: "Start Transcription";
+            clicked => { root.start_transcription(); }
+            enabled: !root.is_processing;
+        }
+        
+        ProgressIndicator {
+            progress: root.progress;
+            indeterminate: root.is_processing && root.progress == 0.0;
+        }
+        
+        TextEdit {
+            text: root.transcription_text;
+            read-only: true;
+        }
+    }
+}
