@@ -4,6 +4,13 @@ pub fn get_last_dir_path() -> Option<PathBuf> {
     std::env::var("HOME").ok().map(|home| PathBuf::from(home).join(".media_transcriber_last_dir"))
 }
 
+pub fn get_model_path() -> PathBuf {
+    std::env::var("HOME")
+        .ok()
+        .map(|home| PathBuf::from(home).join(".media_transcriber").join("models").join("ggml-small.bin"))
+        .unwrap_or_else(|| PathBuf::from("models/ggml-small.bin"))
+}
+
 pub fn save_last_dir(path: &std::path::Path) {
     if let Some(parent) = path.parent() {
         if let Some(config_path) = get_last_dir_path() {

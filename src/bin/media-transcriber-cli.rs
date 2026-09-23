@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::io::Write;
 use clap::Parser;
 use media_transcriber::audio::{extract_audio, parse_wav_file};
+use media_transcriber::config::get_model_path;
 use media_transcriber::transcription::transcribe_audio;
 use media_transcriber::model::download_model;
 
@@ -16,11 +17,10 @@ struct Args {
 fn main() {
     let args = Args::parse();
     
-    let model_path = "models/ggml-small.bin";
-    let model_file_path = std::path::Path::new(model_path);
+    let model_path = get_model_path();
     
     // 0. Download model if missing
-    if !model_file_path.exists() {
+    if !model_path.exists() {
         println!("Whisper model not found locally.");
         println!("Starting download of ggml-small.bin (approx 140MB)...");
         
@@ -36,7 +36,7 @@ fn main() {
         
         if let Err(e) = download_model(
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-            model_file_path,
+            &model_path,
             progress_callback
         ) {
             eprintln!("\nError downloading model: {}", e);
@@ -84,7 +84,7 @@ fn main() {
             }
         };
         
-        match transcribe_audio(model_path, &audio_data, progress_callback) {
+        match transcribe_audio(&model_path.to_string_lossy(), &audio_data, progress_callback) {
             Ok((full_text_stamped, _full_text_raw)) => {
                 println!("\n  -> Transcription complete.");
                 if let Err(e) = std::fs::write(&output_file, full_text_stamped) {

@@ -6,16 +6,15 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use notify_rust::Notification;
 use media_transcriber::audio::{extract_audio, parse_wav_file};
-use media_transcriber::config::{load_last_dir, save_last_dir};
+use media_transcriber::config::{load_last_dir, save_last_dir, get_model_path};
 use media_transcriber::transcription::transcribe_audio;
 use media_transcriber::model::download_model;
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
 
-    let model_path = "models/ggml-small.bin";
-    let model_file_path = std::path::Path::new(model_path);
-    if !model_file_path.exists() {
+    let model_path = get_model_path();
+    if !model_path.exists() {
         ui.set_show_download_popup(true);
     }
 
@@ -23,8 +22,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.on_start_download(move || {
         let ui_bg = ui_handle_download.clone();
         thread::spawn(move || {
-            let model_path = "models/ggml-small.bin";
-            let model_file_path = std::path::Path::new(model_path);
+            let model_path = get_model_path();
             
             let download_progress_callback = {
                 let ui_bg = ui_bg.clone();
@@ -42,7 +40,7 @@ fn main() -> Result<(), slint::PlatformError> {
             
             if let Err(e) = download_model(
                 "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-                model_file_path,
+                &model_path,
                 download_progress_callback
             ) {
                 println!("Error downloading model: {}", e);
@@ -162,7 +160,8 @@ fn main() -> Result<(), slint::PlatformError> {
             });
             
             // 3. Initialize Whisper and transcribe
-            let model_path = "models/ggml-small.bin"; 
+            let model_path = get_model_path();
+            let model_path_str = model_path.to_string_lossy().to_string();
             
             let progress_callback = {
                 let ui_bg = ui_bg.clone();
@@ -182,7 +181,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             };
             
-            match transcribe_audio(model_path, &audio_data, progress_callback) {
+            match transcribe_audio(&model_path_str, &audio_data, progress_callback) {
                 Ok((full_text_stamped, full_text_raw)) => {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_bg.upgrade() {
