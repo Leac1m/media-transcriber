@@ -103,7 +103,12 @@ jobs:
           # Ad-hoc sign from the inside out. Apple Silicon won't run unsigned
           # code; this isn't a Developer ID signature, so Gatekeeper still
           # asks users to confirm on first launch.
-          for bin in "$app"/Contents/MacOS/*; do codesign --force -s - "$bin"; done
+          # Helpers (ffmpeg, the CLI) must be signed before the bundle, whose
+          # signature covers the main executable.
+          main=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")
+          for bin in "$app"/Contents/MacOS/*; do
+            [[ "$(basename "$bin")" == "$main" ]] || codesign --force -s - "$bin"
+          done
           codesign --force -s - "$app"
           codesign --verify --deep --strict --verbose=2 "$app"
 
