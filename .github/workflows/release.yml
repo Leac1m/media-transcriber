@@ -41,12 +41,12 @@ jobs:
           - label: macos-arm64
             os: macos-latest
             target: aarch64-apple-darwin
-            formats: dmg
+            formats: app
             bundle-ffmpeg: true
           - label: macos-x64
             os: macos-15-intel
             target: x86_64-apple-darwin
-            formats: dmg
+            formats: app
             bundle-ffmpeg: true
     runs-on: ${{ matrix.os }}
     defaults:
@@ -95,6 +95,22 @@ jobs:
           # AppImage tooling otherwise needs FUSE, which the runner lacks.
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: cargo packager --release --formats ${{ matrix.formats }}
+
+      - name: Sign the app and build the .dmg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          app="target/packages/Media Transcriber.app"
+          # Ad-hoc sign from the inside out. Apple Silicon won't run unsigned
+          # code; this isn't a Developer ID signature, so Gatekeeper still
+          # asks users to confirm on first launch.
+          for bin in "$app"/Contents/MacOS/*; do codesign --force -s - "$bin"; done
+          codesign --force -s - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+
+          staging=$(mktemp -d)
+          cp -R "$app" "$staging/"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create -volname "Media Transcriber" -srcfolder "$staging" -format UDZO -ov target/packages/MediaTranscriber.dmg
 
       - name: Collect release files
         run: |

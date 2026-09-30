@@ -53,11 +53,14 @@ before-packaging-command = "cargo build --release --locked"
 [package.metadata.packager.deb]
 depends = ["ffmpeg", "libfontconfig1"]
 section = "video"
+files = { "LICENSE" = "/usr/share/doc/media-transcriber/copyright" }
 
+[package.metadata.packager.appimage]
+files = { "LICENSE" = "/usr/share/doc/media-transcriber/copyright" }
+
+# The release workflow ad-hoc signs the .app and builds the .dmg itself.
 [package.metadata.packager.macos]
 minimum-system-version = "12.0"
-# Ad-hoc signature: required to run on Apple Silicon, but not a Developer ID.
-signing-identity = "-"
 
 [package.metadata.packager.nsis]
 installer-icon = "ui/icon.ico"
