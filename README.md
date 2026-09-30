@@ -63,12 +63,12 @@ Each file's transcript, with timestamps, is written next to it as a `.txt` file 
 
 ## 🛠️ Building from source
 
-**Requirements (all platforms):** [Rust](https://rustup.rs/) 1.92 or newer, CMake, a C/C++ compiler and libclang (used to build whisper.cpp), plus FFmpeg at runtime.
+**Requirements (all platforms):** [Rust](https://rustup.rs/) 1.92 or newer, CMake, a C/C++ compiler and libclang (used to build whisper.cpp), plus FFmpeg at runtime. Linux also needs the fontconfig development files.
 
 | System | Install the requirements |
 |---|---|
-| Debian/Ubuntu | `sudo apt install build-essential cmake clang ffmpeg` |
-| Fedora | `sudo dnf install gcc-c++ cmake clang-devel ffmpeg-free` (or `ffmpeg` from RPM Fusion for more codecs) |
+| Debian/Ubuntu | `sudo apt install build-essential cmake clang pkg-config libfontconfig-dev ffmpeg` |
+| Fedora | `sudo dnf install gcc-c++ cmake clang-devel pkgconf fontconfig-devel ffmpeg-free` (or `ffmpeg` from RPM Fusion for more codecs) |
 | macOS | `xcode-select --install`, then `brew install cmake ffmpeg` |
 | Windows | [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) ("Desktop development with C++"), then `winget install Kitware.CMake LLVM.LLVM Gyan.FFmpeg` |
 
