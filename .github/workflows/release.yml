@@ -86,7 +86,8 @@ jobs:
         run: |
           python=$(command -v python3 || command -v python)
           "$python" packaging/fetch_ffmpeg.py ${{ matrix.target }} dist
-          perl -pi -e 's{^# \@bundle-ffmpeg\@$}{external-binaries = ["dist/ffmpeg"]\nresources = ["LICENSE", "packaging/FFMPEG-NOTICE.txt"]}' Cargo.toml
+          # \s* also eats the \r of CRLF checkouts on Windows.
+          perl -pi -e 's{^# \@bundle-ffmpeg\@\s*$}{external-binaries = ["dist/ffmpeg"]\nresources = ["LICENSE", "packaging/FFMPEG-NOTICE.txt"]}' Cargo.toml
           grep -q '^external-binaries' Cargo.toml
 
       - name: Build packages
@@ -131,13 +132,16 @@ jobs:
           sudo apt-get install -y ./upload/*.deb
           media-transcriber-cli --version
           if ldd /usr/bin/media-transcriber | grep 'not found'; then exit 1; fi
-      - name: Test the app bundle
+      - name: Test the app inside the .dmg
         if: runner.os == 'macOS'
         run: |
-          app="target/packages/Media Transcriber.app"
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" upload/*.dmg
+          app=$(echo "$mnt"/*.app)
           codesign --verify --deep --strict --verbose=2 "$app"
           "$app/Contents/MacOS/ffmpeg" -hide_banner -version | head -1
           "$app/Contents/MacOS/media-transcriber-cli" --version
+          hdiutil detach "$mnt"
       - name: Test the CLI archive
         if: runner.os == 'Windows'
         run: |
