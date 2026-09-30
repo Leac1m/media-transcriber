@@ -2,9 +2,9 @@ use std::path::PathBuf;
 use std::io::Write;
 use clap::Parser;
 use media_transcriber::audio::{extract_audio, parse_wav_file};
-use media_transcriber::config::get_model_path;
-use media_transcriber::transcription::transcribe_audio;
-use media_transcriber::model::download_model;
+use media_transcriber::config::{get_model_path, MODEL_SIZE};
+use media_transcriber::transcription::Transcriber;
+use media_transcriber::model::{download_model, is_model_installed};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -20,9 +20,9 @@ fn main() {
     let model_path = get_model_path();
     
     // 0. Download model if missing
-    if !model_path.exists() {
+    if !is_model_installed(&model_path) {
         println!("Whisper model not found locally.");
-        println!("Starting download of ggml-small.bin (approx 140MB)...");
+        println!("Starting download of ggml-small.bin (approx {} MB)...", MODEL_SIZE / (1024 * 1024));
         
         let mut last_percent = -1;
         let progress_callback = move |progress: f32| {
@@ -34,16 +34,21 @@ fn main() {
             }
         };
         
-        if let Err(e) = download_model(
-            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-            &model_path,
-            progress_callback
-        ) {
+        if let Err(e) = download_model(&model_path, progress_callback) {
             eprintln!("\nError downloading model: {}", e);
             std::process::exit(1);
         }
         println!("\nDownload complete.");
     }
+
+    println!("Loading Whisper model...");
+    let transcriber = match Transcriber::load(&model_path.to_string_lossy()) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("Error loading model: {}", e);
+            std::process::exit(1);
+        }
+    };
     
     for input_file in args.files {
         let input_path_str = input_file.to_string_lossy().to_string();
@@ -84,7 +89,7 @@ fn main() {
             }
         };
         
-        match transcribe_audio(&model_path.to_string_lossy(), &audio_data, progress_callback) {
+        match transcriber.transcribe(&audio_data, progress_callback) {
             Ok((full_text_stamped, _full_text_raw)) => {
                 println!("\n  -> Transcription complete.");
                 if let Err(e) = std::fs::write(&output_file, full_text_stamped) {

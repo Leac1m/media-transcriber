@@ -15,6 +15,8 @@ export component AppWindow inherits Window {
     
     in property <bool> show_download_popup: false;
     in property <float> download_progress: 0.0;
+    in property <bool> is_downloading: false;
+    in property <string> download_error: "";
     
     callback select_file();
     callback start_transcription();
@@ -80,7 +82,7 @@ export component AppWindow inherits Window {
 
         Rectangle {
             width: 450px;
-            height: 220px;
+            height: root.download_error == "" ? 220px : 270px;
             background: #242424;
             border-radius: 8px;
             border-width: 1px;
@@ -99,19 +101,27 @@ export component AppWindow inherits Window {
                 }
                 
                 Text {
-                    text: "To transcribe media, you need to download the Whisper transcription model (approx. 140MB). This is a one-time download.";
+                    text: "To transcribe media, you need to download the Whisper transcription model (approx. 465 MB). This is a one-time download.";
                     wrap: word-wrap;
                     horizontal-alignment: center;
                 }
                 
                 ProgressIndicator {
                     progress: root.download_progress;
+                    indeterminate: root.is_downloading && root.download_progress == 0.0;
+                }
+                
+                if root.download_error != "" : Text {
+                    text: root.download_error;
+                    color: #ff6b6b;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
                 }
                 
                 Button {
-                    text: root.download_progress > 0.0 ? "Downloading..." : "Download Now";
+                    text: root.is_downloading ? "Downloading..." : (root.download_error != "" ? "Retry" : "Download Now");
                     clicked => { root.start_download(); }
-                    enabled: root.download_progress == 0.0;
+                    enabled: !root.is_downloading;
                 }
             }
         }

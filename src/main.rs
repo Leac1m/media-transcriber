@@ -7,19 +7,25 @@ use std::sync::Mutex;
 use notify_rust::Notification;
 use media_transcriber::audio::{extract_audio, parse_wav_file};
 use media_transcriber::config::{load_last_dir, save_last_dir, get_model_path};
-use media_transcriber::transcription::transcribe_audio;
-use media_transcriber::model::download_model;
+use media_transcriber::transcription::Transcriber;
+use media_transcriber::model::{download_model, is_model_installed};
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
 
     let model_path = get_model_path();
-    if !model_path.exists() {
+    if !is_model_installed(&model_path) {
         ui.set_show_download_popup(true);
     }
 
     let ui_handle_download = ui.as_weak();
     ui.on_start_download(move || {
+        if let Some(ui) = ui_handle_download.upgrade() {
+            ui.set_is_downloading(true);
+            ui.set_download_error("".into());
+            ui.set_download_progress(0.0);
+        }
+
         let ui_bg = ui_handle_download.clone();
         thread::spawn(move || {
             let model_path = get_model_path();
@@ -38,18 +44,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             };
             
-            if let Err(e) = download_model(
-                "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-                &model_path,
-                download_progress_callback
-            ) {
-                println!("Error downloading model: {}", e);
-                // optionally handle error in UI
-            }
-            
+            let result = download_model(&model_path, download_progress_callback);
+
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_bg.upgrade() {
-                    ui.set_show_download_popup(false);
+                    ui.set_is_downloading(false);
+                    match result {
+                        Ok(()) => ui.set_show_download_popup(false),
+                        Err(e) => {
+                            ui.set_download_progress(0.0);
+                            ui.set_download_error(e.into());
+                        }
+                    }
                 }
             });
         });
@@ -130,7 +136,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 move || {
                     if let Some(ui) = ui_bg.upgrade() {
                         ui.set_progress(0.10);
-                        ui.set_text_with_timestamps("Audio extracted. Loading Whisper model...".into()); ui.set_text_without_timestamps("Audio extracted. Loading Whisper model...".into());
+                        ui.set_text_with_timestamps("Audio extracted. Reading audio...".into()); ui.set_text_without_timestamps("Audio extracted. Reading audio...".into());
                     }
                 }
             });
@@ -154,15 +160,38 @@ fn main() -> Result<(), slint::PlatformError> {
                 move || {
                     if let Some(ui) = ui_bg.upgrade() {
                         ui.set_progress(0.15);
-                        ui.set_text_with_timestamps("Model loaded. Transcribing...".into()); ui.set_text_without_timestamps("Model loaded. Transcribing...".into());
+                        ui.set_text_with_timestamps("Loading Whisper model...".into()); ui.set_text_without_timestamps("Loading Whisper model...".into());
                     }
                 }
             });
             
-            // 3. Initialize Whisper and transcribe
+            // 3. Load Whisper model
             let model_path = get_model_path();
-            let model_path_str = model_path.to_string_lossy().to_string();
-            
+            let transcriber = match Transcriber::load(&model_path.to_string_lossy()) {
+                Ok(t) => t,
+                Err(e) => {
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_bg.upgrade() {
+                            ui.set_text_with_timestamps(e.clone().into()); ui.set_text_without_timestamps(e.into());
+                            ui.set_is_processing(false);
+                        }
+                    });
+                    return;
+                }
+            };
+
+            let _ = slint::invoke_from_event_loop({
+                let ui_bg = ui_bg.clone();
+                move || {
+                    if let Some(ui) = ui_bg.upgrade() {
+                        ui.set_progress(0.20);
+                        ui.set_text_with_timestamps("Model loaded. Transcribing...".into()); ui.set_text_without_timestamps("Model loaded. Transcribing...".into());
+                    }
+                }
+            });
+
+            // 4. Transcribe
+
             let progress_callback = {
                 let ui_bg = ui_bg.clone();
                 move |progress| {
@@ -181,7 +210,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             };
             
-            match transcribe_audio(&model_path_str, &audio_data, progress_callback) {
+            match transcriber.transcribe(&audio_data, progress_callback) {
                 Ok((full_text_stamped, full_text_raw)) => {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_bg.upgrade() {
