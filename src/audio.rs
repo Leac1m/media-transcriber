@@ -6,7 +6,11 @@ use std::thread;
 /// Whisper expects 16 kHz mono audio.
 pub const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
-const FFMPEG_BIN: &str = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+const FFMPEG_BIN: &str = if cfg!(windows) {
+    "ffmpeg.exe"
+} else {
+    "ffmpeg"
+};
 
 /// Finds FFmpeg: the copy bundled next to our executable first, then PATH.
 ///
@@ -21,8 +25,14 @@ fn find_ffmpeg() -> Option<PathBuf> {
         return bundled;
     }
 
-    let path_dirs = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default();
-    let extra_dirs: &[&str] = if cfg!(target_os = "macos") { &["/opt/homebrew/bin", "/usr/local/bin"] } else { &[] };
+    let path_dirs = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let extra_dirs: &[&str] = if cfg!(target_os = "macos") {
+        &["/opt/homebrew/bin", "/usr/local/bin"]
+    } else {
+        &[]
+    };
 
     path_dirs
         .into_iter()
@@ -39,7 +49,10 @@ fn ffmpeg_missing_message() -> String {
     } else {
         "sudo apt install ffmpeg (or your distribution's equivalent)"
     };
-    format!("FFmpeg was not found. Reinstall Media Transcriber, or install FFmpeg with: {}", install)
+    format!(
+        "FFmpeg was not found. Reinstall Media Transcriber, or install FFmpeg with: {}",
+        install
+    )
 }
 
 /// Decodes the audio track of any media file FFmpeg understands to 16 kHz
@@ -54,7 +67,16 @@ pub fn load_audio(path: &Path) -> Result<Vec<f32>, String> {
     let mut cmd = Command::new(ffmpeg);
     cmd.args(["-nostdin", "-loglevel", "error", "-i"])
         .arg(path)
-        .args(["-vn", "-ac", "1", "-ar", &WHISPER_SAMPLE_RATE.to_string(), "-f", "s16le", "-"])
+        .args([
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            &WHISPER_SAMPLE_RATE.to_string(),
+            "-f",
+            "s16le",
+            "-",
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -67,7 +89,9 @@ pub fn load_audio(path: &Path) -> Result<Vec<f32>, String> {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
 
     // Drain stderr on its own thread so a chatty FFmpeg can't fill the pipe
     // and deadlock while we're blocked reading stdout.
@@ -79,16 +103,23 @@ pub fn load_audio(path: &Path) -> Result<Vec<f32>, String> {
     });
 
     let mut stdout = child.stdout.take().expect("stdout is piped");
-    let samples = read_pcm_s16le(&mut stdout).map_err(|e| format!("Failed to read audio from FFmpeg: {}", e))?;
+    let samples = read_pcm_s16le(&mut stdout)
+        .map_err(|e| format!("Failed to read audio from FFmpeg: {}", e))?;
 
-    let status = child.wait().map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
+    let status = child
+        .wait()
+        .map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
     let stderr = stderr_reader.join().unwrap_or_default();
 
     if !status.success() {
         if stderr.contains("does not contain any stream") || stderr.contains("matches no streams") {
             return Err("This file has no audio track.".into());
         }
-        let reason = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("unknown error");
+        let reason = stderr
+            .lines()
+            .rev()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("unknown error");
         return Err(format!("Could not decode audio: {}", reason.trim()));
     }
     if samples.is_empty() {

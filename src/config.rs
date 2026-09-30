@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-pub const MODEL_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin";
+pub const MODEL_URL: &str =
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin";
 pub const MODEL_SIZE: u64 = 487_601_967;
 pub const MODEL_SHA256: &str = "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b";
 

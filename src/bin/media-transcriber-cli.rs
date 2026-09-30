@@ -1,10 +1,10 @@
-use std::path::PathBuf;
-use std::io::Write;
 use clap::Parser;
 use media_transcriber::audio::load_audio;
-use media_transcriber::config::{get_model_path, MODEL_SIZE};
-use media_transcriber::transcription::Transcriber;
+use media_transcriber::config::{MODEL_SIZE, get_model_path};
 use media_transcriber::model::{download_model, is_model_installed};
+use media_transcriber::transcription::Transcriber;
+use std::io::Write;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -16,14 +16,17 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    
+
     let model_path = get_model_path();
-    
+
     // 0. Download model if missing
     if !is_model_installed(&model_path) {
         println!("Whisper model not found locally.");
-        println!("Starting download of ggml-small.bin (approx {} MB)...", MODEL_SIZE / (1024 * 1024));
-        
+        println!(
+            "Starting download of ggml-small.bin (approx {} MB)...",
+            MODEL_SIZE / (1024 * 1024)
+        );
+
         let mut last_percent = -1;
         let progress_callback = move |progress: f32| {
             let percent = (progress * 100.0) as i32;
@@ -33,7 +36,7 @@ fn main() {
                 last_percent = percent;
             }
         };
-        
+
         if let Err(e) = download_model(&model_path, progress_callback) {
             eprintln!("\nError downloading model: {}", e);
             std::process::exit(1);
@@ -49,19 +52,19 @@ fn main() {
             std::process::exit(1);
         }
     };
-    
+
     for input_file in args.files {
         let input_path_str = input_file.to_string_lossy().to_string();
         println!("\nProcessing: {}", input_path_str);
-        
+
         if !input_file.exists() {
             eprintln!("File not found: {}", input_path_str);
             continue;
         }
-        
+
         let mut output_file = input_file.clone();
         output_file.set_extension("txt");
-        
+
         println!("  -> Decoding audio...");
         let audio_data = match load_audio(&input_file) {
             Ok(data) => data,
@@ -70,7 +73,7 @@ fn main() {
                 continue;
             }
         };
-        
+
         println!("  -> Transcribing...");
         let mut last_percent = -1;
         let progress_callback = move |progress: i32| {
@@ -80,7 +83,7 @@ fn main() {
                 last_percent = progress;
             }
         };
-        
+
         match transcriber.transcribe(&audio_data, progress_callback) {
             Ok((full_text_stamped, _full_text_raw)) => {
                 println!("\n  -> Transcription complete.");
@@ -89,7 +92,7 @@ fn main() {
                 } else {
                     println!("  -> Saved to: {}", output_file.display());
                 }
-            },
+            }
             Err(e) => {
                 eprintln!("\n  -> Error transcribing: {}", e);
             }

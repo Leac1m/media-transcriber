@@ -14,11 +14,18 @@ impl Transcriber {
     }
 
     /// Returns `(text_with_timestamps, text_without_timestamps)`.
-    pub fn transcribe<F>(&self, audio_data: &[f32], progress_callback: F) -> Result<(String, String), String>
+    pub fn transcribe<F>(
+        &self,
+        audio_data: &[f32],
+        progress_callback: F,
+    ) -> Result<(String, String), String>
     where
         F: FnMut(i32) + Send + 'static,
     {
-        let mut state = self.ctx.create_state().map_err(|_| "Failed to create state".to_string())?;
+        let mut state = self
+            .ctx
+            .create_state()
+            .map_err(|_| "Failed to create state".to_string())?;
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_print_progress(false);
@@ -30,7 +37,9 @@ impl Transcriber {
 
         params.set_progress_callback_safe(progress_callback);
 
-        state.full(params, audio_data).map_err(|e| format!("Failed to transcribe: {}", e))?;
+        state
+            .full(params, audio_data)
+            .map_err(|e| format!("Failed to transcribe: {}", e))?;
 
         let num_segments = state.full_n_segments();
         let mut full_text_stamped = String::new();
