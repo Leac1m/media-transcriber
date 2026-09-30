@@ -1,63 +1,56 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+# Builds Media Transcriber from source and installs it for the current user.
+# Prebuilt installers: https://github.com/Leac1m/media-transcriber/releases
+set -euo pipefail
 
-echo "🎙️  Installing Media Transcriber..."
+cd "$(dirname "$0")"
 
-# 1. Check for ffmpeg
-if ! command -v ffmpeg &> /dev/null; then
-    echo "📦 FFmpeg not found. Attempting to install..."
-    if command -v apt-get &> /dev/null; then
-        sudo apt-get update && sudo apt-get install -y ffmpeg
-    else
-        echo "❌ Please install ffmpeg manually for your OS."
+BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+echo "🎙️  Installing Media Transcriber from source..."
+
+for tool in cargo cmake; do
+    if ! command -v "$tool" &> /dev/null; then
+        echo "❌ '$tool' not found. See 'Building from source' in README.md." >&2
         exit 1
     fi
-else
-    echo "✅ FFmpeg is already installed."
+done
+if ! command -v ffmpeg &> /dev/null; then
+    echo "⚠️  FFmpeg not found. Install it before transcribing (see README.md)."
 fi
 
-# 2. Check for cargo/rust
-if ! command -v cargo &> /dev/null; then
-    echo "❌ Rust/Cargo not found. Please install Rust from https://rustup.rs/ and try again."
-    exit 1
-else
-    echo "✅ Rust is installed."
-fi
+echo "⚙️  Building (this may take a few minutes)..."
+cargo build --release --locked
 
-# 3. Download Whisper model
-echo "🧠 Setting up Whisper AI model..."
-mkdir -p models
-if [ ! -f "models/ggml-small.bin" ]; then
-    echo "Downloading ggml-small.bin..."
-    wget -O models/ggml-small.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
-else
-    echo "✅ Model already exists. Skipping download."
-fi
+mkdir -p "$BIN_DIR"
+install -m 755 target/release/media-transcriber target/release/media-transcriber-cli "$BIN_DIR/"
+echo "✅ Installed media-transcriber and media-transcriber-cli to $BIN_DIR"
 
-# 4. Build the release binary
-echo "⚙️  Building Media Transcriber (this may take a few minutes)..."
-cargo build --release
-
-# 5. Setup Linux Desktop Entry
-echo "🖥️  Setting up desktop shortcut..."
-DESKTOP_FILE="$HOME/.local/share/applications/media-transcriber.desktop"
-APP_DIR="$(pwd)"
-
-# We use icon.png since it's already in the repository
-cat << EOF > "$DESKTOP_FILE"
+if [[ "$(uname -s)" == "Linux" ]]; then
+    # The icon name is also used for desktop notifications.
+    mkdir -p "$DATA_DIR/icons" "$DATA_DIR/applications"
+    install -m 644 ui/icon.png "$DATA_DIR/icons/media-transcriber.png"
+    cat > "$DATA_DIR/applications/media-transcriber.desktop" << EOF
 [Desktop Entry]
 Name=Media Transcriber
-Exec=$APP_DIR/target/release/media-transcriber
-Icon=$APP_DIR/ui/icon.png
+Comment=Transcribe speech in video and audio files
+Exec=$BIN_DIR/media-transcriber
+Icon=media-transcriber
 Type=Application
 Terminal=false
 StartupWMClass=media-transcriber
-Categories=Utility;AudioVideo;
+Categories=AudioVideo;Utility;
 EOF
-
-# Update desktop database if available
-if command -v update-desktop-database &> /dev/null; then
-    update-desktop-database ~/.local/share/applications/ || true
+    if command -v update-desktop-database &> /dev/null; then
+        update-desktop-database "$DATA_DIR/applications" || true
+    fi
+    echo "✅ Added Media Transcriber to your application menu"
 fi
 
-echo "🎉 Installation complete! You can now launch 'Media Transcriber' from your application menu."
+case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *) echo "ℹ️  Add $BIN_DIR to your PATH to run the command-line tool from anywhere." ;;
+esac
+
+echo "🎉 Done! The Whisper model (~465 MB) is downloaded on first launch."

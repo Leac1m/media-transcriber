@@ -1,88 +1,111 @@
 <div align="center">
   <h1>🎙️ Media Transcriber</h1>
-  <p><strong>A blazingly fast, privacy-first desktop application for extracting and transcribing audio from video files using Whisper AI.</strong></p>
+  <p><strong>A fast, privacy-first desktop app that transcribes speech in video and audio files using Whisper, entirely on your own machine.</strong></p>
 
   ![Rust](https://img.shields.io/badge/Made%20with-Rust-black?style=for-the-badge&logo=rust)
   ![Slint](https://img.shields.io/badge/UI-Slint-blue?style=for-the-badge)
   ![Whisper](https://img.shields.io/badge/AI-Whisper.cpp-purple?style=for-the-badge)
+  ![License](https://img.shields.io/badge/License-GPLv3-green?style=for-the-badge)
 </div>
 
 <br />
 
-## 🌟 Overview
+Pick a video or audio file, and Media Transcriber pulls out the audio and turns the speech into text using OpenAI's Whisper model running **100% locally**. No cloud APIs and no account; after the one-time model download it works fully offline.
 
-Media Transcriber is a standalone desktop application that allows you to easily select a video file, automatically rip the audio in the background, and transcribe the speech to text using OpenAI's state-of-the-art Whisper models running **100% locally on your machine**. 
+![Media Transcriber Screenshot](docs/screenshot.png)
 
-No cloud APIs, no internet connection required, and complete privacy for your sensitive video and audio data.
+## ✨ Features
 
-![Media Transcriber Screenshot](./media_transcirber_screenshot.png)
+* 🔒 **Local and private:** your files never leave your machine.
+* 🌍 **Many languages:** the spoken language is detected automatically.
+* 🎞️ **Almost any format:** MP4, MKV, MOV, AVI, WebM, MP3, WAV, M4A, FLAC, Ogg, Opus and more.
+* ⏱️ **Timestamps:** toggle `[MM:SS.mmm]` markers on or off instantly, without re-processing.
+* 📊 **Live progress** through decoding, model loading and transcription.
+* 📋 **Easy export:** copy to the clipboard or save as a `.txt` file.
+* 💻 **Command-line tool** for batch-transcribing many files.
 
----
+## 📥 Installation
 
-## ✨ Key Features
+Download the file for your system from the [latest release](https://github.com/Leac1m/media-transcriber/releases/latest):
 
-* 🔒 **100% Local & Private:** Your files never leave your machine. All AI inference is done locally.
-* ⚡ **Seamless Pipeline:** Automatically invokes `ffmpeg` to extract and convert audio to the exact format required by the AI, all behind the scenes.
-* ⏱️ **Timestamping:** Extracts precise AI timestamps. Toggle them on or off instantly in the UI without re-processing!
-* 📊 **Live Progress Tracking:** Real-time visual progress bar tracking the extraction, model loading, and live AI transcription phases.
-* 📋 **Frictionless Export:** 1-click export to your system clipboard or save directly as a `.txt` file.
+| System | File | Notes |
+|---|---|---|
+| **Windows** 10/11 (64-bit) | `…-setup.exe` | FFmpeg is included. |
+| **macOS** Apple Silicon / Intel | `….dmg` | FFmpeg is included. Drag the app into Applications. |
+| **Linux** (Debian/Ubuntu) | `….deb` | Install with `sudo apt install ./<file>.deb`, which also installs FFmpeg. |
+| **Linux** (any distro) | `….AppImage` | Needs FFmpeg from your package manager. Run `chmod +x <file>.AppImage`, then launch it. |
 
----
+On first launch the app offers to download the Whisper model (~465 MB, once). The download is checked against a SHA-256 checksum before use.
 
-## 🛠️ Tech Stack
+### "Unidentified developer" warnings
 
-* **[Rust](https://www.rust-lang.org/):** The core engine, providing safety, concurrency, and blazing-fast performance.
-* **[Slint](https://slint.dev/):** A modern, lightweight, and responsive native GUI toolkit.
-* **[whisper-rs](https://github.com/tazz4843/whisper-rs):** Rust bindings for `whisper.cpp` to run the AI model efficiently on CPU/GPU.
-* **[Hound](https://github.com/ruigc/hound):** For fast, native parsing of WAV audio files.
-* **[rfd](https://github.com/PolyMeilex/rfd):** Native system file dialogs for cross-platform compatibility.
+The releases are not code-signed yet, so your OS will warn you the first time:
 
----
+* **Windows (SmartScreen):** click **More info → Run anyway**.
+* **macOS (Gatekeeper):** open the app once, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
 
-## 🚀 Getting Started
+## 💻 Usage
 
-### Easy Installation (Linux / macOS)
+### Desktop app
 
-We have provided a convenient `install.sh` script that will:
-1. Verify Rust and FFmpeg are installed (and prompt to install if missing).
-2. Download the Whisper `ggml-small.bin` AI model for you.
-3. Build the application in `--release` mode.
-4. Setup a `.desktop` shortcut so it appears in your app launcher with the correct icon!
+1. Click **Select Video File** and choose a video or audio file.
+2. Click **Start Transcription** and follow the progress bar.
+3. Use **Show Timestamps** to toggle the time markers.
+4. Click **📋 Copy to Clipboard** or **💾 Save to File**.
 
-Simply run:
+### Command line
+
 ```bash
-git clone https://github.com/your-username/media-transcriber.git
+media-transcriber-cli interview.mp4 lecture.mkv podcast.mp3
+```
+
+Each file's transcript, with timestamps, is written next to it as a `.txt` file (`interview.txt`, …). The model is loaded once and reused for every file.
+
+## 🛠️ Building from source
+
+**Requirements (all platforms):** [Rust](https://rustup.rs/) 1.92 or newer, CMake, a C/C++ compiler and libclang (used to build whisper.cpp), plus FFmpeg at runtime.
+
+| System | Install the requirements |
+|---|---|
+| Debian/Ubuntu | `sudo apt install build-essential cmake clang ffmpeg` |
+| Fedora | `sudo dnf install gcc-c++ cmake clang-devel ffmpeg-free` (or `ffmpeg` from RPM Fusion for more codecs) |
+| macOS | `xcode-select --install`, then `brew install cmake ffmpeg` |
+| Windows | [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) ("Desktop development with C++"), then `winget install Kitware.CMake LLVM.LLVM Gyan.FFmpeg` |
+
+Then:
+
+```bash
+git clone https://github.com/Leac1m/media-transcriber.git
 cd media-transcriber
-./install.sh
+cargo run --release                                          # desktop app
+cargo run --release --bin media-transcriber-cli -- file.mp4  # command line
 ```
 
-### Manual Installation
+On Linux and macOS, `./install.sh` builds the app and installs it for your user (`~/.local/bin`, plus an app-menu entry on Linux).
 
-If you prefer to install manually or are on Windows:
+## 🗂️ Where files are stored
 
-1. **Install Prerequisites**: Ensure Rust and FFmpeg are installed.
-2. **Download Model**: Download `ggml-small.bin` from [whisper.cpp HuggingFace](https://huggingface.co/ggerganov/whisper.cpp/tree/main) into a `models/` directory.
-3. **Build & Run**:
-```bash
-cargo run --release
-```
+| | Linux | macOS | Windows |
+|---|---|---|---|
+| Whisper model | `~/.local/share/media-transcriber/models/` | `~/Library/Application Support/media-transcriber/models/` | `%LOCALAPPDATA%\media-transcriber\models\` |
+| Settings | `~/.config/media-transcriber/` | `~/Library/Application Support/media-transcriber/` | `%APPDATA%\media-transcriber\` |
 
----
+To free the disk space after uninstalling, delete these folders.
 
-## 💻 Usage Instructions
+## 🧱 Built with
 
-1. **Select File:** Click the `Select Video File` button to open your native file explorer and pick any standard video or audio file (`.mp4`, `.mkv`, `.mp3`, etc.).
-2. **Start Transcription:** Click `Start Transcription`. The app will begin extracting the audio, loading the model, and transcribing. You can track the progress in the UI.
-3. **Format Output:** Once complete, use the `Show Timestamps` checkbox to toggle the timestamp markers (`[MM:SS.ms]`) on or off.
-4. **Export:** Click `📋 Copy to Clipboard` to instantly copy the text, or `💾 Save to File` to export it as a `.txt` document.
-
----
+* [Rust](https://www.rust-lang.org/): the core application.
+* [Slint](https://slint.dev/): the native GUI toolkit.
+* [whisper-rs](https://codeberg.org/tazz4843/whisper-rs): Rust bindings for [whisper.cpp](https://github.com/ggml-org/whisper.cpp).
+* [FFmpeg](https://ffmpeg.org/): audio extraction and decoding.
+* [rfd](https://github.com/PolyMeilex/rfd): native file dialogs.
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](#) if you want to contribute.
+Issues and pull requests are welcome on the [issue tracker](https://github.com/Leac1m/media-transcriber/issues).
 
 ## 📝 License
 
-This project is open-source and available under the [MIT License](LICENSE).
-# media-transcriber
+Media Transcriber is licensed under the [GNU General Public License v3.0](LICENSE) or later.
+
+The Whisper model is released by OpenAI under the MIT License. FFmpeg, included in the Windows and macOS releases, is licensed under the GPL; its license and a link to its source code come with those releases.

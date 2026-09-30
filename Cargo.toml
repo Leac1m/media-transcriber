@@ -2,6 +2,13 @@
 name = "media-transcriber"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.92"
+description = "Transcribe speech in video and audio files locally with Whisper"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/Leac1m/media-transcriber"
+readme = "README.md"
+keywords = ["transcription", "whisper", "speech-to-text", "subtitles"]
+categories = ["multimedia::audio", "gui", "command-line-utilities"]
 
 [dependencies]
 arboard = "3.6.1"
