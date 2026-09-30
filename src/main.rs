@@ -1,3 +1,6 @@
+// Without this, Windows opens a console window alongside the GUI.
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 slint::include_modules!();
 
 use std::path::PathBuf;
@@ -5,7 +8,7 @@ use std::thread;
 use std::sync::Arc;
 use std::sync::Mutex;
 use notify_rust::Notification;
-use media_transcriber::audio::{extract_audio, parse_wav_file};
+use media_transcriber::audio::load_audio;
 use media_transcriber::config::{load_last_dir, save_last_dir, get_model_path};
 use media_transcriber::transcription::Transcriber;
 use media_transcriber::model::{download_model, is_model_installed};
@@ -69,7 +72,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let video_path_clone = Arc::clone(&video_path);
     ui.on_select_file(move || {
         let mut dialog = rfd::FileDialog::new()
-            .add_filter("Media Files", &["mp4", "mkv", "avi", "mov", "webm", "mp3", "wav", "m4a", "flac"]);
+            .add_filter("Media Files", &["mp4", "mkv", "avi", "mov", "webm", "mp3", "wav", "m4a", "flac", "ogg", "opus", "aac"]);
             
         if let Some(last_dir) = load_last_dir() {
             dialog = dialog.set_directory(last_dir);
@@ -97,7 +100,7 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             return;
         }
-        let input_path = path_opt.unwrap().to_string_lossy().to_string();
+        let input_path = path_opt.unwrap();
         
         if let Some(ui) = ui_handle_transcribe.upgrade() {
             ui.set_text_with_timestamps("Starting transcription process...\nChecking requirements...".into()); ui.set_text_without_timestamps("Starting transcription process...\nChecking requirements...".into());
@@ -108,46 +111,23 @@ fn main() -> Result<(), slint::PlatformError> {
         let ui_bg = ui_handle_transcribe.clone();
         
         thread::spawn(move || {
-            let wav_path = "/tmp/media_transcriber_audio.wav";
-
             let _ = slint::invoke_from_event_loop({
                 let ui_bg = ui_bg.clone();
                 move || {
                     if let Some(ui) = ui_bg.upgrade() {
                         ui.set_progress(0.05);
-                        ui.set_text_with_timestamps("Extracting audio with ffmpeg...".into()); ui.set_text_without_timestamps("Extracting audio with ffmpeg...".into());
+                        ui.set_text_with_timestamps("Decoding audio...".into()); ui.set_text_without_timestamps("Decoding audio...".into());
                     }
                 }
             });
 
-            // 1. Extract audio
-            if let Err(e) = extract_audio(&input_path, wav_path) {
-                let _ = slint::invoke_from_event_loop(move || {
-                    if let Some(ui) = ui_bg.upgrade() {
-                        ui.set_text_with_timestamps(format!("Error extracting audio: {}", e).into()); ui.set_text_without_timestamps(format!("Error extracting audio: {}", e).into());
-                        ui.set_is_processing(false);
-                    }
-                });
-                return;
-            }
-            
-            let _ = slint::invoke_from_event_loop({
-                let ui_bg = ui_bg.clone();
-                move || {
-                    if let Some(ui) = ui_bg.upgrade() {
-                        ui.set_progress(0.10);
-                        ui.set_text_with_timestamps("Audio extracted. Reading audio...".into()); ui.set_text_without_timestamps("Audio extracted. Reading audio...".into());
-                    }
-                }
-            });
-            
-            // 2. Parse WAV
-            let audio_data = match parse_wav_file(wav_path) {
+            // 1-2. Decode audio to 16 kHz mono
+            let audio_data = match load_audio(&input_path) {
                 Ok(data) => data,
                 Err(e) => {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_bg.upgrade() {
-                            ui.set_text_with_timestamps(format!("Error parsing audio: {}", e).into()); ui.set_text_without_timestamps(format!("Error parsing audio: {}", e).into());
+                            ui.set_text_with_timestamps(e.clone().into()); ui.set_text_without_timestamps(e.into());
                             ui.set_is_processing(false);
                         }
                     });
@@ -221,11 +201,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     });
                     
-                    let _ = Notification::new()
-                        .summary("Media Transcriber")
-                        .body("Transcription complete!")
-                        .icon("media-transcriber")
-                        .show();
+                    let mut notification = Notification::new();
+                    notification.summary("Media Transcriber").body("Transcription complete!");
+                    // Icon names are resolved from the system icon theme, which only exists on Linux.
+                    #[cfg(target_os = "linux")]
+                    notification.icon("media-transcriber");
+                    let _ = notification.show();
                 },
                 Err(e) => {
                     let _ = slint::invoke_from_event_loop(move || {

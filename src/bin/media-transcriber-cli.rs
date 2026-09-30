@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::io::Write;
 use clap::Parser;
-use media_transcriber::audio::{extract_audio, parse_wav_file};
+use media_transcriber::audio::load_audio;
 use media_transcriber::config::{get_model_path, MODEL_SIZE};
 use media_transcriber::transcription::Transcriber;
 use media_transcriber::model::{download_model, is_model_installed};
@@ -62,19 +62,11 @@ fn main() {
         let mut output_file = input_file.clone();
         output_file.set_extension("txt");
         
-        let wav_path = "/tmp/media_transcriber_cli_audio.wav";
-        
-        println!("  -> Extracting audio...");
-        if let Err(e) = extract_audio(&input_path_str, wav_path) {
-            eprintln!("  -> Error extracting audio: {}", e);
-            continue;
-        }
-        
-        println!("  -> Loading audio...");
-        let audio_data = match parse_wav_file(wav_path) {
+        println!("  -> Decoding audio...");
+        let audio_data = match load_audio(&input_file) {
             Ok(data) => data,
             Err(e) => {
-                eprintln!("  -> Error parsing audio: {}", e);
+                eprintln!("  -> Error: {}", e);
                 continue;
             }
         };
@@ -102,7 +94,5 @@ fn main() {
                 eprintln!("\n  -> Error transcribing: {}", e);
             }
         }
-        
-        let _ = std::fs::remove_file(wav_path);
     }
 }
