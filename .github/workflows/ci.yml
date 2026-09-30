@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: ["**"]
   # Same-repo PRs are already covered by the push run; only build forks here.
   pull_request:
 

@@ -30,12 +30,17 @@ Download the file for your system from the [latest release](https://github.com/L
 
 | System | File | Notes |
 |---|---|---|
-| **Windows** 10/11 (64-bit) | `…-setup.exe` | FFmpeg is included. |
-| **macOS** Apple Silicon / Intel | `….dmg` | FFmpeg is included. Drag the app into Applications. |
-| **Linux** (Debian/Ubuntu) | `….deb` | Install with `sudo apt install ./<file>.deb`, which also installs FFmpeg. |
-| **Linux** (any distro) | `….AppImage` | Needs FFmpeg from your package manager. Run `chmod +x <file>.AppImage`, then launch it. |
+| **Windows** 10/11 (64-bit) | `MediaTranscriber-<version>-windows-x64-setup.exe` | FFmpeg is included. |
+| **macOS** 12+, Apple Silicon | `MediaTranscriber-<version>-macos-arm64.dmg` | FFmpeg is included. Transcribes on the GPU. |
+| **macOS** 12+, Intel | `MediaTranscriber-<version>-macos-x64.dmg` | FFmpeg is included. |
+| **Linux** (Debian/Ubuntu) | `media-transcriber_<version>_amd64.deb` | Install with `sudo apt install ./media-transcriber_<version>_amd64.deb`, which also installs FFmpeg. |
+| **Linux** (any distro) | `MediaTranscriber-<version>-linux-x86_64.AppImage` | Needs FFmpeg and FUSE 2 from your package manager (`ffmpeg`, and `libfuse2` or `libfuse2t64` on Ubuntu). Run `chmod +x` on the file, then launch it. |
+
+On macOS, open the `.dmg` and drag **Media Transcriber** into Applications.
 
 On first launch the app offers to download the Whisper model (~465 MB, once). The download is checked against a SHA-256 checksum before use.
+
+Every release also lists `SHA256SUMS.txt` so you can verify your download.
 
 ### "Unidentified developer" warnings
 
@@ -60,6 +65,8 @@ media-transcriber-cli interview.mp4 lecture.mkv podcast.mp3
 ```
 
 Each file's transcript, with timestamps, is written next to it as a `.txt` file (`interview.txt`, …). The model is loaded once and reused for every file.
+
+The command-line tool is installed alongside the app: on Linux it's on your PATH, and on macOS it's at `/Applications/Media Transcriber.app/Contents/MacOS/media-transcriber-cli`. Each release also has standalone archives (`media-transcriber-cli-<version>-<platform>`) that include FFmpeg on Windows and macOS.
 
 ## 🛠️ Building from source
 
@@ -100,6 +107,14 @@ To free the disk space after uninstalling, delete these folders.
 * [FFmpeg](https://ffmpeg.org/): audio extraction and decoding.
 * [rfd](https://github.com/PolyMeilex/rfd): native file dialogs.
 
+## 🚀 Releasing
+
+1. Update `version` in `Cargo.toml` and commit.
+2. Tag the commit and push the tag: `git tag v1.2.3 && git push origin v1.2.3`.
+3. The [Release workflow](.github/workflows/release.yml) builds every package and attaches them to a **draft** release. Check it, then publish it.
+
+Tags with a suffix, such as `v1.2.3-rc.1`, become pre-releases. The FFmpeg builds bundled for Windows and macOS are pinned, with checksums, in [`packaging/fetch_ffmpeg.py`](packaging/fetch_ffmpeg.py).
+
 ## 🤝 Contributing
 
 Issues and pull requests are welcome on the [issue tracker](https://github.com/Leac1m/media-transcriber/issues).
@@ -108,4 +123,4 @@ Issues and pull requests are welcome on the [issue tracker](https://github.com/L
 
 Media Transcriber is licensed under the [GNU General Public License v3.0](LICENSE) or later.
 
-The Whisper model is released by OpenAI under the MIT License. FFmpeg, included in the Windows and macOS releases, is licensed under the GPL; its license and a link to its source code come with those releases.
+The Whisper model is released by OpenAI under the MIT License. FFmpeg, included in the Windows and macOS releases, is licensed under the GPL v3; see [`packaging/FFMPEG-NOTICE.txt`](packaging/FFMPEG-NOTICE.txt) for its source code.

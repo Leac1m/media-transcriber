@@ -1,0 +1,22 @@
+Media Transcriber bundles FFmpeg
+================================
+
+This package includes an unmodified FFmpeg 9.0.2 executable (https://ffmpeg.org),
+which Media Transcriber runs as a separate program to decode audio.
+
+This FFmpeg build is licensed under the GNU General Public License, version 3.
+The license text is in the LICENSE file included with this package.
+
+Source code
+-----------
+FFmpeg 9.0.2:  https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+
+The executables were built by third parties, whose build configurations and
+scripts are published here:
+
+  Windows:  https://www.gyan.dev/ffmpeg/builds/  (release essentials build)
+  macOS:    https://ffmpeg.martin-riedl.de/  (build scripts: https://gitlab.com/martinr92/ffmpeg)
+
+If any of these links stops working, open an issue at
+https://github.com/Leac1m/media-transcriber/issues and we will provide the
+corresponding source code.

@@ -1,0 +1,173 @@
+name: Release
+
+# Pushing a tag like v1.2.3 builds the installers and attaches them to a
+# *draft* GitHub release. Review the draft, then publish it by hand.
+# Tags with a suffix (v1.2.3-rc.1) become pre-releases.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Build whisper.cpp for a portable CPU baseline, not the build machine's CPU,
+  # so the binaries don't crash with "illegal instruction" on older CPUs.
+  GGML_NATIVE: "OFF"
+  # Must match minimum-system-version in Cargo.toml and the bundled FFmpeg.
+  MACOSX_DEPLOYMENT_TARGET: "12.0"
+  CMAKE_OSX_DEPLOYMENT_TARGET: "12.0"
+  CARGO_PACKAGER_VERSION: "0.11.8"
+
+jobs:
+  package:
+    name: Package (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-x86_64
+            # The oldest supported runner, so the binaries run on older glibc versions.
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            formats: deb,appimage
+            bundle-ffmpeg: false
+          - label: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            formats: nsis
+            bundle-ffmpeg: true
+          - label: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            formats: dmg
+            bundle-ffmpeg: true
+          - label: macos-x64
+            os: macos-15-intel
+            target: x86_64-apple-darwin
+            formats: dmg
+            bundle-ffmpeg: true
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches the Cargo.toml version
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
+          tag=${GITHUB_REF_NAME#v}
+          if [[ "${tag%%-*}" != "$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version $version"
+            exit 1
+          fi
+          echo "VERSION=$tag" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+
+      - name: Check the runner builds for ${{ matrix.target }}
+        run: |
+          test "$(rustc -vV | sed -n 's/^host: //p')" = "${{ matrix.target }}"
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfontconfig-dev
+
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
+
+      - name: Fetch and bundle FFmpeg
+        if: matrix.bundle-ffmpeg
+        run: |
+          python=$(command -v python3 || command -v python)
+          "$python" packaging/fetch_ffmpeg.py ${{ matrix.target }} dist
+          perl -pi -e 's{^# \@bundle-ffmpeg\@$}{external-binaries = ["dist/ffmpeg"]\nresources = ["LICENSE", "packaging/FFMPEG-NOTICE.txt"]}' Cargo.toml
+          grep -q '^external-binaries' Cargo.toml
+
+      - name: Build packages
+        env:
+          # AppImage tooling otherwise needs FUSE, which the runner lacks.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: cargo packager --release --formats ${{ matrix.formats }}
+
+      - name: Collect release files
+        run: |
+          mkdir -p upload cli
+          exe=""; [[ "$RUNNER_OS" == "Windows" ]] && exe=".exe"
+          cp "target/release/media-transcriber-cli$exe" LICENSE cli/
+          if [[ "${{ matrix.bundle-ffmpeg }}" == "true" ]]; then
+            cp "dist/ffmpeg-${{ matrix.target }}$exe" "cli/ffmpeg$exe"
+            cp packaging/FFMPEG-NOTICE.txt cli/
+          fi
+          cli_name="media-transcriber-cli-$VERSION-${{ matrix.label }}"
+
+          case "$RUNNER_OS" in
+            Linux)
+              cp target/packages/*.deb "upload/media-transcriber_${VERSION}_amd64.deb"
+              cp target/packages/*.AppImage "upload/MediaTranscriber-$VERSION-${{ matrix.label }}.AppImage"
+              tar -czf "upload/$cli_name.tar.gz" -C cli .
+              ;;
+            Windows)
+              cp target/packages/*-setup.exe "upload/MediaTranscriber-$VERSION-${{ matrix.label }}-setup.exe"
+              (cd cli && 7z a -tzip "../upload/$cli_name.zip" . > /dev/null)
+              ;;
+            macOS)
+              cp target/packages/*.dmg "upload/MediaTranscriber-$VERSION-${{ matrix.label }}.dmg"
+              codesign --force -s - cli/ffmpeg cli/media-transcriber-cli
+              tar -czf "upload/$cli_name.tar.gz" -C cli .
+              ;;
+          esac
+          ls -la upload
+
+      # Smoke tests: the packaged binaries start, and the bundled FFmpeg runs.
+      - name: Test the .deb installs and runs
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./upload/*.deb
+          media-transcriber-cli --version
+          if ldd /usr/bin/media-transcriber | grep 'not found'; then exit 1; fi
+      - name: Test the app bundle
+        if: runner.os == 'macOS'
+        run: |
+          app="target/packages/Media Transcriber.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          "$app/Contents/MacOS/ffmpeg" -hide_banner -version | head -1
+          "$app/Contents/MacOS/media-transcriber-cli" --version
+      - name: Test the CLI archive
+        if: runner.os == 'Windows'
+        run: |
+          cli/ffmpeg.exe -hide_banner -version | head -1
+          cli/media-transcriber-cli.exe --version
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.label }}
+          path: upload/*
+          if-no-files-found: error
+
+  release:
+    name: Create draft release
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: upload
+          merge-multiple: true
+      - name: Write checksums
+        run: cd upload && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          [[ "$GITHUB_REF_NAME" == *-* ]] && prerelease="--prerelease"
+          gh release create "$GITHUB_REF_NAME" upload/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Media Transcriber ${GITHUB_REF_NAME#v}" \
+            --generate-notes --draft $prerelease

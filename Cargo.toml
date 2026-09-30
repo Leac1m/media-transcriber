@@ -21,6 +21,10 @@ slint = "1.18.0"
 ureq = "3.4.2"
 whisper-rs = "0.16.0"
 
+# Run Whisper on the GPU (Metal) on Apple Silicon.
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+whisper-rs = { version = "0.16.0", features = ["metal"] }
+
 [build-dependencies]
 slint-build = "1.18.0"
 
@@ -30,3 +34,32 @@ winresource = "0.1.31"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+# Installers, built with `cargo packager --release` (see .github/workflows/release.yml).
+[package.metadata.packager]
+product-name = "Media Transcriber"
+identifier = "io.github.leac1m.media-transcriber"
+publisher = "Leac1m"
+authors = ["Leac1m"]
+long-description = "Pick a video or audio file and get a transcript, with optional timestamps. Speech is recognized with OpenAI's Whisper model running entirely on your computer."
+category = "Video"
+icons = ["packaging/icons/*.png"]
+license-file = "LICENSE"
+out-dir = "target/packages"
+before-packaging-command = "cargo build --release --locked"
+# The release workflow replaces the next line on Windows and macOS to bundle FFmpeg.
+# @bundle-ffmpeg@
+
+[package.metadata.packager.deb]
+depends = ["ffmpeg", "libfontconfig1"]
+section = "video"
+
+[package.metadata.packager.macos]
+minimum-system-version = "12.0"
+# Ad-hoc signature: required to run on Apple Silicon, but not a Developer ID.
+signing-identity = "-"
+
+[package.metadata.packager.nsis]
+installer-icon = "ui/icon.ico"
+# Lets the uninstaller (optionally) delete the downloaded model and settings.
+appdata-paths = ["$LOCALAPPDATA/media-transcriber", "$APPDATA/media-transcriber"]
