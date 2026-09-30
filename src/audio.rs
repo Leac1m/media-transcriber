@@ -145,14 +145,68 @@ fn read_pcm_s16le(reader: &mut impl Read) -> io::Result<Vec<f32>> {
 
         // A read can end mid-sample; carry the odd byte over to the next one.
         let usable = filled - filled % 2;
+        let (pairs, _) = buf[..usable].as_chunks::<2>();
         samples.extend(
-            buf[..usable]
-                .chunks_exact(2)
-                .map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0),
+            pairs
+                .iter()
+                .map(|&pair| i16::from_le_bytes(pair) as f32 / 32768.0),
         );
         buf.copy_within(usable..filled, 0);
         filled -= usable;
     }
 
     Ok(samples)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Returns one byte per read, so samples are split across reads.
+    struct OneByteAtATime<'a>(&'a [u8]);
+
+    impl Read for OneByteAtATime<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            match self.0.split_first() {
+                Some((&byte, rest)) if !buf.is_empty() => {
+                    buf[0] = byte;
+                    self.0 = rest;
+                    Ok(1)
+                }
+                _ => Ok(0),
+            }
+        }
+    }
+
+    fn pcm(samples: &[i16]) -> Vec<u8> {
+        samples.iter().flat_map(|s| s.to_le_bytes()).collect()
+    }
+
+    #[test]
+    fn converts_pcm_to_normalized_floats() {
+        let bytes = pcm(&[0, 16_384, -32_768, 32_767]);
+        let samples = read_pcm_s16le(&mut bytes.as_slice()).unwrap();
+        assert_eq!(samples, vec![0.0, 0.5, -1.0, 32_767.0 / 32_768.0]);
+    }
+
+    #[test]
+    fn reassembles_samples_split_across_reads() {
+        let bytes = pcm(&[1_000, -2_000, 3_000]);
+        let split = read_pcm_s16le(&mut OneByteAtATime(&bytes)).unwrap();
+        let whole = read_pcm_s16le(&mut bytes.as_slice()).unwrap();
+        assert_eq!(split, whole);
+    }
+
+    #[test]
+    fn ignores_a_trailing_half_sample() {
+        let mut bytes = pcm(&[1_000]);
+        bytes.push(0x7f);
+        assert_eq!(read_pcm_s16le(&mut bytes.as_slice()).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn reports_missing_files() {
+        let err = load_audio(Path::new("definitely/not/here.mp4")).unwrap_err();
+        assert!(err.starts_with("File not found"), "{err}");
+    }
 }

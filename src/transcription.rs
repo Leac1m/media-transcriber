@@ -47,18 +47,16 @@ impl Transcriber {
 
         for i in 0..num_segments {
             if let Some(segment) = state.get_segment(i) {
-                let text = segment.to_str().unwrap_or_else(|_| "".into());
+                let text = segment.to_str().unwrap_or_default();
 
-                let start = segment.start_timestamp();
-                let start_sec = start / 100;
-                let m = start_sec / 60;
-                let s = start_sec % 60;
-                let ms = (start % 100) * 10;
-
-                let stamped_line = format!("[{:02}:{:02}.{:03}] {}\n", m, s, ms, text.trim());
+                let stamped_line = format!(
+                    "{} {}\n",
+                    format_timestamp(segment.start_timestamp()),
+                    text.trim()
+                );
 
                 full_text_stamped.push_str(&stamped_line);
-                full_text_raw.push_str(&text);
+                full_text_raw.push_str(text);
                 full_text_raw.push('\n');
             }
         }
@@ -69,5 +67,35 @@ impl Transcriber {
         }
 
         Ok((full_text_stamped, full_text_raw))
+    }
+}
+
+/// Formats a Whisper timestamp (in centiseconds) as `[MM:SS.mmm]`.
+/// Minutes keep counting past 59 rather than rolling over into hours.
+fn format_timestamp(centiseconds: i64) -> String {
+    let total_seconds = centiseconds / 100;
+    let minutes = total_seconds / 60;
+    let seconds = total_seconds % 60;
+    let millis = (centiseconds % 100) * 10;
+    format!("[{:02}:{:02}.{:03}]", minutes, seconds, millis)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_timestamp;
+
+    #[test]
+    fn formats_timestamps() {
+        assert_eq!(format_timestamp(0), "[00:00.000]");
+        assert_eq!(format_timestamp(1_234), "[00:12.340]");
+        assert_eq!(format_timestamp(12_345), "[02:03.450]");
+    }
+
+    #[test]
+    fn minutes_keep_counting_past_an_hour() {
+        assert_eq!(
+            format_timestamp(2 * 60 * 60 * 100 + 5 * 100),
+            "[120:05.000]"
+        );
     }
 }

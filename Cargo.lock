@@ -2823,6 +2823,7 @@ dependencies = [
  "sha2",
  "slint",
  "slint-build",
+ "tempfile",
  "ureq",
  "whisper-rs",
  "winresource",

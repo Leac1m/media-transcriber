@@ -269,7 +269,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
         if let Some(path) = dialog.save_file() {
             save_last_dir(&path);
-            let _ = std::fs::write(path, text.to_string());
+            let _ = std::fs::write(path, text.as_str());
         }
     });
 

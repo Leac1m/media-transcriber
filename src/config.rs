@@ -36,3 +36,24 @@ pub fn load_last_dir() -> Option<PathBuf> {
     let path = PathBuf::from(content.trim());
     path.is_dir().then_some(path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn model_lives_in_the_app_data_dir() {
+        let expected = PathBuf::from(APP_DIR).join("models").join("ggml-small.bin");
+        assert!(get_model_path().ends_with(expected));
+    }
+
+    #[test]
+    fn checksum_is_lowercase_sha256_hex() {
+        assert_eq!(MODEL_SHA256.len(), 64);
+        assert!(
+            MODEL_SHA256
+                .chars()
+                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+        );
+    }
+}
